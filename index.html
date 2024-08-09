@@ -8,6 +8,7 @@
         body { font-family: Arial, sans-serif; text-align: center; }
         #video, #canvas { display: block; margin: 0 auto; }
         button { margin: 10px; }
+        #errorMessage { color: red; }
     </style>
 </head>
 <body>
@@ -18,6 +19,7 @@
     <video id="video" width="640" height="480" style="display:none;"></video>
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     <button id="captureButton" style="display:none;">写真を撮る</button>
+    <p id="errorMessage"></p>
 
     <script>
         const video = document.getElementById('video');
@@ -25,6 +27,7 @@
         const captureButton = document.getElementById('captureButton');
         const startButton = document.getElementById('startButton');
         const noButton = document.getElementById('noButton');
+        const errorMessage = document.getElementById('errorMessage');
 
         startButton.onclick = () => {
             video.style.display = 'block';
@@ -43,6 +46,7 @@
                 video.play();
             } catch (err) {
                 console.error("カメラの起動に失敗しました:", err);
+                errorMessage.textContent = `カメラの起動に失敗しました: ${err.message}`;
             }
         }
 
@@ -75,12 +79,13 @@
             resizedCanvas.getContext('2d').drawImage(canvas, 0, 0, width, height);
 
             const imageDataUrl = resizedCanvas.toDataURL('image/jpeg', 0.7);
-            uploadImage(imageDataUrl);
+            await uploadImage(imageDataUrl);
         }
 
         async function uploadImage(imageDataUrl) {
-            const apiUrl = 'https://your-api-gateway-url.com/prod';
+            const apiUrl = 'https://8550m0vrp9.execute-api.ap-southeast-2.amazonaws.com/prod';
             try {
+                console.log('画像のアップロードを開始します...');
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
@@ -88,17 +93,20 @@
                     },
                     body: JSON.stringify({ image: imageDataUrl }),
                 });
+                console.log('レスポンスステータス:', response.status);
                 const result = await response.json();
+                console.log('レスポンスボディ:', result);
                 if (response.ok) {
                     alert('画像のアップロードに成功しました！');
                 } else {
-                    alert('画像のアップロードに失敗しました。');
+                    throw new Error(result.message || 'アップロードに失敗しました');
                 }
             } catch (error) {
                 console.error('エラー:', error);
-                alert('画像のアップロード中にエラーが発生しました。');
+                errorMessage.textContent = `画像のアップロード中にエラーが発生しました: ${error.message}`;
+                alert('画像のアップロード中にエラーが発生しました。詳細はコンソールを確認してください。');
             }
         }
     </script>
 </body>
-</html
+</html>
