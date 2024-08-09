@@ -5,96 +5,73 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>顔認証登録サイト</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-        }
-        .container {
-            text-align: center;
-            background-color: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        button {
-            margin: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        #cameraContainer {
-            display: none;
-            margin-top: 20px;
-        }
-        #captureButton {
-            display: none;
-            margin-top: 10px;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #video, #canvas { display: block; margin: 0 auto; }
+        button { margin: 10px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>ようこそ、顔認証登録サイトへ！</h1>
-        <p>顔を登録しますか？</p>
-        <button onclick="showCamera()">Yes</button>
-        <button onclick="decline()">No</button>
-        <div id="cameraContainer">
-            <video id="video" width="400" height="300" autoplay></video>
-        </div>
-        <button id="captureButton" onclick="captureImage()">写真を撮る</button>
-    </div>
+    <h1>ようこそ、顔認証登録サイトへ！</h1>
+    <p>顔を登録しますか？</p>
+    <button id="startButton">はい</button>
+    <button id="noButton">いいえ</button>
+    <video id="video" width="640" height="480" style="display:none;"></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <button id="captureButton" style="display:none;">写真を撮る</button>
 
     <script>
-        let stream;
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureButton = document.getElementById('captureButton');
+        const startButton = document.getElementById('startButton');
+        const noButton = document.getElementById('noButton');
 
-        function showCamera() {
-            const cameraContainer = document.getElementById('cameraContainer');
-            const captureButton = document.getElementById('captureButton');
-            cameraContainer.style.display = 'block';
+        startButton.onclick = () => {
+            video.style.display = 'block';
             captureButton.style.display = 'block';
+            startCamera();
+        };
 
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(function(s) {
-                    stream = s;
-                    const video = document.getElementById('video');
-                    video.srcObject = stream;
-                })
-                .catch(function(err) {
-                    console.log("An error occurred: " + err);
-                });
+        noButton.onclick = () => {
+            alert('登録をキャンセルしました。');
+        };
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.play();
+            } catch (err) {
+                console.error("カメラの起動に失敗しました:", err);
+            }
         }
 
-        function captureImage() {
-            const video = document.getElementById('video');
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            
-            // ここで画像データを取得します（Base64形式）
+        captureButton.onclick = () => {
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageDataUrl = canvas.toDataURL('image/jpeg');
-            
-            console.log("Captured image data:", imageDataUrl);
-            // ここで画像データをサーバーに送信するAPIを呼び出します
-            // 例: sendImageToServer(imageDataUrl);
+            uploadImage(imageDataUrl);
+        };
 
-            // カメラストリームを停止
-            stream.getTracks().forEach(track => track.stop());
-            
-            // カメラ表示を隠す
-            document.getElementById('cameraContainer').style.display = 'none';
-            document.getElementById('captureButton').style.display = 'none';
-            
-            alert("写真が撮影されました。");
-        }
-
-        function decline() {
-            alert("登録をキャンセルしました。");
+        async function uploadImage(imageDataUrl) {
+            const apiUrl = 'https://8550m0vrp9.execute-api.ap-southeast-2.amazonaws.com/prod';
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: imageDataUrl }),
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('画像のアップロードに成功しました！');
+                } else {
+                    alert('画像のアップロードに失敗しました。');
+                }
+            } catch (error) {
+                console.error('エラー:', error);
+                alert('画像のアップロード中にエラーが発生しました。');
+            }
         }
     </script>
 </body>
