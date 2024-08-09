@@ -48,12 +48,38 @@
 
         captureButton.onclick = () => {
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageDataUrl = canvas.toDataURL('image/jpeg');
-            uploadImage(imageDataUrl);
+            resizeAndUploadImage(canvas);
         };
 
+        async function resizeAndUploadImage(canvas) {
+            const maxWidth = 800;
+            const maxHeight = 600;
+            let width = canvas.width;
+            let height = canvas.height;
+
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+
+            const resizedCanvas = document.createElement('canvas');
+            resizedCanvas.width = width;
+            resizedCanvas.height = height;
+            resizedCanvas.getContext('2d').drawImage(canvas, 0, 0, width, height);
+
+            const imageDataUrl = resizedCanvas.toDataURL('image/jpeg', 0.7);
+            uploadImage(imageDataUrl);
+        }
+
         async function uploadImage(imageDataUrl) {
-            const apiUrl = 'https://8550m0vrp9.execute-api.ap-southeast-2.amazonaws.com/prod';
+            const apiUrl = 'https://your-api-gateway-url.com/prod';
             try {
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -75,4 +101,4 @@
         }
     </script>
 </body>
-</html>
+</html
