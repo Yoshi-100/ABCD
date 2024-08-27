@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>顔認証システム</title>
 <style>
 body { font-family: Arial, sans-serif; text-align: center; }
-#videoContainer { position: relative; width: 100%; max-width: 640px; margin: 0 auto; }
-#video, #overlay { position: absolute; top: 0; left: 0; width: 100%; height: auto; transform: scaleX(-1); }
+#videoContainer { position: relative; width: 640px; height: 480px; margin: 0 auto; }
+#video, #overlay { position: absolute; top: 0; left: 0; transform: scaleX(-1); }
 button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 #status { font-weight: bold; margin: 20px 0; }
 #instruction { font-style: italic; }
@@ -17,18 +17,18 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 <body>
 <h1>顔認証システム</h1>
 <p>顔認証を行いますか？</p>
-<button id="startButton">はい</button>
-<button id="noButton">いいえ</button>
+<button id="startButton">はい、始めます</button>
+<button id="noButton">いいえ、やめます</button>
 <div id="loadingIndicator" class="loading">
 <p>処理中...</p>
 <progress></progress>
 </div>
 <p id="status"></p>
 <div id="videoContainer" style="display: none;">
-<video id="video" playsinline autoplay muted></video>
-<canvas id="overlay"></canvas>
+<video id="video" width="640" height="480"></video>
+<canvas id="overlay" width="640" height="480"></canvas>
 </div>
-<canvas id="canvas" style="display:none;"></canvas>
+<canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
 <p id="instruction"></p>
 <p id="result"></p>
 
@@ -46,18 +46,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const result = document.getElementById('result');
     const videoContainer = document.getElementById('videoContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
-
     let model;
     let stream;
 
     startButton.addEventListener('click', startAuthentication);
-    noButton.addEventListener('click', cancelAuthentication);
-
-    function cancelAuthentication() {
-        result.textContent = "顔登録・顔認証の検討をよろしくお願いします。";
+    noButton.addEventListener('click', () => {
+        status.textContent = 'またのお越しをお待ちしております！';
         startButton.style.display = 'none';
         noButton.style.display = 'none';
-    }
+    });
 
     async function startAuthentication() {
         startButton.disabled = true;
@@ -78,24 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function initializeCamera() {
         status.textContent = "カメラの起動中...";
-        const constraints = {
-            video: {
-                facingMode: "user",
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        };
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
-            videoContainer.style.display = 'block';
-            await video.play();
-            status.textContent = "カメラが起動しました。";
-        } catch (error) {
-            console.error("カメラの起動に失敗しました:", error);
-            status.textContent = "カメラの起動に失敗しました。設定を確認してください。";
-            throw error;
-        }
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        video.srcObject = stream;
+        videoContainer.style.display = 'block';
+        await video.play();
+        status.textContent = "カメラが起動しました。";
     }
 
     async function loadFaceDetectionModel() {
@@ -127,9 +111,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.lineWidth = 3;
                 ctx.strokeRect(x, y, width, height);
 
-                instruction.textContent = "顔を検出しました。認証を行います。";
+                instruction.textContent = "顔を検出しました。認証を開始します。";
+                setTimeout(() => authenticateFace(video), 1000);
                 ctx.restore();
-                setTimeout(() => authenticateFace(), 1000);
                 return;
             }
 
@@ -140,43 +124,42 @@ document.addEventListener('DOMContentLoaded', function() {
         detect();
     }
 
-    async function authenticateFace() {
-        status.textContent = "顔認証中...";
+    async function authenticateFace(videoElement) {
+        status.textContent = "顔を認証中...";
         instruction.textContent = "";
-        loadingIndicator.style.display = 'block';
 
-        const imageDataUrl = captureImage();
-        const apiUrl = 'https://your-api-url.com/authenticate'; // サーバーのAPIエンドポイントを指定
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = videoElement.videoWidth;
+        tempCanvas.height = videoElement.videoHeight;
+        tempCtx.scale(-1, 1);
+        tempCtx.translate(-tempCanvas.width, 0);
+        tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+
+        const imageDataUrl = tempCanvas.toDataURL('image/jpeg');
 
         try {
-            const response = await fetch(apiUrl, {
+            const response = await fetch('https://8550m0vrp9.execute-api.ap-southeast-2.amazonaws.com/prod/authenticate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image: imageDataUrl }),
             });
-            const data = await response.json();
 
+            const data = await response.json();
+            
             if (data.authenticated) {
-                result.textContent = "顔認証が確認できました。ドアロックを解除します。";
+                result.textContent = "認証可能！";
             } else {
-                result.textContent = "顔認証を確認できません。顔登録をしてください。";
+                result.textContent = "認証できませんでした。顔登録してください。";
             }
         } catch (error) {
             console.error('認証エラー:', error);
-            result.textContent = "認証中にエラーが発生しました。もう一度お試しください。";
+            result.textContent = `認証中にエラーが発生しました: ${error.message}`;
         } finally {
-            loadingIndicator.style.display = 'none';
+            status.textContent = "認証プロセスが完了しました。";
             video.pause();
             stream.getTracks().forEach(track => track.stop());
-            videoContainer.style.display = 'none';
         }
-    }
-
-    function captureImage() {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL('image/jpeg');
     }
 });
 </script>
