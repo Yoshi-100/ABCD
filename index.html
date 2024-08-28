@@ -12,6 +12,8 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 #status { font-weight: bold; margin: 20px 0; }
 #instruction { font-style: italic; }
 .loading { display: none; }
+#confirmationContainer { display: none; margin-top: 20px; }
+#capturedImage { max-width: 100%; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -31,6 +33,12 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
 <p id="instruction"></p>
 <p id="result"></p>
+<div id="confirmationContainer">
+<img id="capturedImage" alt="検出された顔">
+<p>この画像で認証を行いますか？</p>
+<button id="confirmYesButton">はい</button>
+<button id="confirmNoButton">いいえ、再度撮影</button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
@@ -46,6 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const result = document.getElementById('result');
     const videoContainer = document.getElementById('videoContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
+    const confirmationContainer = document.getElementById('confirmationContainer');
+    const capturedImage = document.getElementById('capturedImage');
+    const confirmYesButton = document.getElementById('confirmYesButton');
+    const confirmNoButton = document.getElementById('confirmNoButton');
     let model;
     let stream;
 
@@ -54,6 +66,17 @@ document.addEventListener('DOMContentLoaded', function() {
         status.textContent = 'またのお越しをお待ちしております！';
         startButton.style.display = 'none';
         noButton.style.display = 'none';
+    });
+
+    confirmYesButton.addEventListener('click', () => {
+        confirmationContainer.style.display = 'none';
+        authenticateFace(capturedImage.src);
+    });
+
+    confirmNoButton.addEventListener('click', () => {
+        confirmationContainer.style.display = 'none';
+        videoContainer.style.display = 'block';
+        detectFace();
     });
 
     async function startAuthentication() {
@@ -111,8 +134,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.lineWidth = 3;
                 ctx.strokeRect(x, y, width, height);
 
-                instruction.textContent = "顔を検出しました。認証を開始します。";
-                setTimeout(() => authenticateFace(video), 1000);
+                instruction.textContent = "顔を検出しました。";
+                setTimeout(() => captureAndConfirm(), 1000);
                 ctx.restore();
                 return;
             }
@@ -124,31 +147,38 @@ document.addEventListener('DOMContentLoaded', function() {
         detect();
     }
 
-    async function authenticateFace(videoElement) {
-        status.textContent = "顔を認証中...";
-        instruction.textContent = "";
-
+    function captureAndConfirm() {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = videoElement.videoWidth;
-        tempCanvas.height = videoElement.videoHeight;
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
         tempCtx.scale(-1, 1);
         tempCtx.translate(-tempCanvas.width, 0);
-        tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
 
         const imageDataUrl = tempCanvas.toDataURL('image/jpeg');
+        capturedImage.src = imageDataUrl;
+        videoContainer.style.display = 'none';
+        confirmationContainer.style.display = 'block';
+        status.textContent = "顔を検出しました。確認してください。";
+    }
+
+    async function authenticateFace(imageDataUrl) {
+        status.textContent = "顔を認証中...";
+        instruction.textContent = "";
+        loadingIndicator.style.display = 'block';
 
         try {
             const response = await fetch('https://8550m0vrp9.execute-api.ap-southeast-2.amazonaws.com/prod/authenticate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image: imageDataUrl }),
             });
 
             const data = await response.json();
             
             if (data.authenticated) {
-                result.textContent = "認証可能！";
+                result.textContent = "認証成功！";
             } else {
                 result.textContent = "認証できませんでした。顔登録してください。";
             }
@@ -157,6 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
             result.textContent = `認証中にエラーが発生しました: ${error.message}`;
         } finally {
             status.textContent = "認証プロセスが完了しました。";
+            loadingIndicator.style.display = 'none';
             video.pause();
             stream.getTracks().forEach(track => track.stop());
         }
