@@ -41,15 +41,9 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
 <script>
 window.onload = async function() {
-    // ライブラリが読み込まれたことを確認
-    if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
-        console.error('Required libraries are not loaded');
-        return;
-    }
-
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const overlay = document.getElementById('overlay');
@@ -113,10 +107,7 @@ window.onload = async function() {
 
     async function loadFaceDetectionModel() {
         status.textContent = "顔認識システムの読み込み中...";
-        model = await faceLandmarksDetection.load(
-            faceLandmarksDetection.SupportedPackages.face_landmarks,
-            { maxFaces: 1 }
-        );
+        model = await blazeface.load();
         status.textContent = "顔認識システムの準備完了。";
     }
 
@@ -125,12 +116,7 @@ window.onload = async function() {
         instruction.textContent = "カメラに向かって正面を向いてください。";
 
         async function detect() {
-            const predictions = await model.estimateFaces({
-                input: video,
-                returnTensors: false,
-                flipHorizontal: false,
-                predictIrises: false
-            });
+            const predictions = await model.estimateFaces(video, false);
             const ctx = overlay.getContext('2d');
             ctx.clearRect(0, 0, overlay.width, overlay.height);
             ctx.save();
@@ -139,11 +125,10 @@ window.onload = async function() {
 
             if (predictions.length > 0) {
                 const face = predictions[0];
-                const [x, y] = face.boundingBox.topLeft;
-                const [width, height] = [
-                    face.boundingBox.bottomRight[0] - x,
-                    face.boundingBox.bottomRight[1] - y
-                ];
+                const x = face.topLeft[0];
+                const y = face.topLeft[1];
+                const width = face.bottomRight[0] - x;
+                const height = face.bottomRight[1] - y;
 
                 ctx.strokeStyle = "green";
                 ctx.lineWidth = 3;
