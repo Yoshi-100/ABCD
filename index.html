@@ -184,7 +184,9 @@ async function authenticateFace(imageDataUrl) {
         }
 
         const data = JSON.parse(responseText);
-        const bodyData = JSON.parse(data.body);  // 追加：bodyをパース
+        const bodyData = JSON.parse(data.body);
+
+        console.log('Parsed body data:', bodyData);  // デバッグ用
 
         if (bodyData.authenticated) {
             result.textContent = `認証成功！ユーザーID: ${bodyData.userId}`;
