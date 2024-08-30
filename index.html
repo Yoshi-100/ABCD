@@ -40,10 +40,16 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 <button id="confirmNoButton">いいえ、再度撮影</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onload = async function() {
+    // ライブラリが読み込まれたことを確認
+    if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
+        console.error('Required libraries are not loaded');
+        return;
+    }
+
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const overlay = document.getElementById('overlay');
@@ -108,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadFaceDetectionModel() {
         status.textContent = "顔認識システムの読み込み中...";
         model = await faceLandmarksDetection.load(
-            faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+            faceLandmarksDetection.SupportedPackages.face_landmarks,
             { maxFaces: 1 }
         );
         status.textContent = "顔認識システムの準備完了。";
@@ -205,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             stream.getTracks().forEach(track => track.stop());
         }
     }
-});
+};
 </script>
 </body>
 </html>
