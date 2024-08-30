@@ -163,7 +163,7 @@ window.onload = async function() {
         status.textContent = "顔を検出しました。確認してください。";
     }
 
-    async function authenticateFace(imageDataUrl) {
+async function authenticateFace(imageDataUrl) {
     status.textContent = "顔を認証中...";
     instruction.textContent = "";
     loadingIndicator.style.display = 'block';
@@ -180,13 +180,14 @@ window.onload = async function() {
         console.log('Response text:', responseText);
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = JSON.parse(responseText);
-        
-        if (data.authenticated) {
-            result.textContent = "認証成功！";
+        const bodyData = JSON.parse(data.body);  // 追加：bodyをパース
+
+        if (bodyData.authenticated) {
+            result.textContent = `認証成功！ユーザーID: ${bodyData.userId}`;
         } else {
             result.textContent = "認証できませんでした。顔登録してください。";
         }
