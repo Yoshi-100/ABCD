@@ -164,38 +164,42 @@ window.onload = async function() {
     }
 
     async function authenticateFace(imageDataUrl) {
-        status.textContent = "顔を認証中...";
-        instruction.textContent = "";
-        loadingIndicator.style.display = 'block';
+    status.textContent = "顔を認証中...";
+    instruction.textContent = "";
+    loadingIndicator.style.display = 'block';
 
-        try {
-            const response = await fetch('https://zwf5nd9yr4.execute-api.ap-southeast-2.amazonaws.com/ABC/authenticate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: imageDataUrl }),
-            });
+    try {
+        const response = await fetch('https://zwf5nd9yr4.execute-api.ap-southeast-2.amazonaws.com/ABC/authenticate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: imageDataUrl }),
+        });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+        console.log('Response status:', response.status);
+        const responseText = await response.text();
+        console.log('Response text:', responseText);
 
-            const data = await response.json();
-            
-            if (data.authenticated) {
-                result.textContent = "認証成功！";
-            } else {
-                result.textContent = "認証できませんでした。顔登録してください。";
-            }
-        } catch (error) {
-            console.error('認証エラー:', error);
-            result.textContent = `認証中にエラーが発生しました: ${error.message}`;
-        } finally {
-            status.textContent = "認証プロセスが完了しました。";
-            loadingIndicator.style.display = 'none';
-            video.pause();
-            stream.getTracks().forEach(track => track.stop());
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
         }
+
+        const data = JSON.parse(responseText);
+        
+        if (data.authenticated) {
+            result.textContent = "認証成功！";
+        } else {
+            result.textContent = "認証できませんでした。顔登録してください。";
+        }
+    } catch (error) {
+        console.error('認証エラー:', error);
+        result.textContent = `認証中にエラーが発生しました: ${error.message}`;
+    } finally {
+        status.textContent = "認証プロセスが完了しました。";
+        loadingIndicator.style.display = 'none';
+        video.pause();
+        stream.getTracks().forEach(track => track.stop());
     }
+}
 };
 </script>
 </body>
