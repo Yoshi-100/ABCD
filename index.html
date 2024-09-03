@@ -14,6 +14,25 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 .loading { display: none; }
 #confirmationContainer { display: none; margin-top: 20px; }
 #capturedImage { max-width: 100%; margin-bottom: 10px; }
+#guideOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 640px;
+    height: 480px;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+}
+#faceGuide {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 250px;
+    border: 2px solid #00ff00;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+}
 </style>
 </head>
 <body>
@@ -29,6 +48,9 @@ button { margin: 10px; padding: 10px 20px; font-size: 16px; }
 <div id="videoContainer" style="display: none;">
 <video id="video" width="640" height="480"></video>
 <canvas id="overlay" width="640" height="480"></canvas>
+<div id="guideOverlay">
+    <div id="faceGuide"></div>
+</div>
 </div>
 <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
 <p id="instruction"></p>
@@ -60,6 +82,10 @@ window.onload = async function() {
     const confirmNoButton = document.getElementById('confirmNoButton');
     let model;
     let stream;
+
+    // 顔検出の閾値を設定
+    const FACE_CONFIDENCE_THRESHOLD = 0.9;
+    const FACE_SIZE_THRESHOLD = 0.4;
 
     startButton.addEventListener('click', startAuthentication);
     noButton.addEventListener('click', () => {
@@ -113,7 +139,7 @@ window.onload = async function() {
 
     async function detectFace() {
         status.textContent = "顔を探しています...";
-        instruction.textContent = "カメラに向かって正面を向いてください。";
+        instruction.textContent = "顔をガイド枠に合わせてください。";
 
         async function detect() {
             const predictions = await model.estimateFaces(video, false);
@@ -130,14 +156,32 @@ window.onload = async function() {
                 const width = face.bottomRight[0] - x;
                 const height = face.bottomRight[1] - y;
 
-                ctx.strokeStyle = "green";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(x, y, width, height);
+                // 顔の位置と大きさをチェック
+                const isCentered = x > 160 && x + width < 480 && y > 120 && y + height < 360;
+                const isCorrectSize = width > overlay.width * FACE_SIZE_THRESHOLD && height > overlay.height * FACE_SIZE_THRESHOLD;
 
-                instruction.textContent = "顔を検出しました。";
-                setTimeout(() => captureAndConfirm(), 1000);
-                ctx.restore();
-                return;
+                if (isCentered && isCorrectSize && face.probability[0] > FACE_CONFIDENCE_THRESHOLD) {
+                    ctx.strokeStyle = "green";
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+                    instruction.textContent = "そのまま動かないでください";
+                                        setTimeout(() => captureAndConfirm(), 2000);
+                    ctx.restore();
+                    return;
+                } else {
+                    ctx.strokeStyle = "red";
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+                    if (!isCentered) {
+                        instruction.textContent = "顔をガイド枠の中心に合わせてください";
+                    } else if (!isCorrectSize) {
+                        instruction.textContent = "カメラに近づくか遠ざかってください";
+                    } else {
+                        instruction.textContent = "顔をはっきりと映してください";
+                    }
+                }
+            } else {
+                instruction.textContent = "顔が見つかりません。カメラに向かって正面を向いてください。";
             }
 
             ctx.restore();
@@ -156,53 +200,53 @@ window.onload = async function() {
         tempCtx.translate(-tempCanvas.width, 0);
         tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
 
-        const imageDataUrl = tempCanvas.toDataURL('image/jpeg');
+        const imageDataUrl = tempCanvas.toDataURL('image/jpeg', 1.0);  // 最高品質のJPEG
         capturedImage.src = imageDataUrl;
         videoContainer.style.display = 'none';
         confirmationContainer.style.display = 'block';
         status.textContent = "顔を検出しました。確認してください。";
     }
 
-async function authenticateFace(imageDataUrl) {
-    status.textContent = "顔を認証中...";
-    instruction.textContent = "";
-    loadingIndicator.style.display = 'block';
+    async function authenticateFace(imageDataUrl) {
+        status.textContent = "顔を認証中...";
+        instruction.textContent = "";
+        loadingIndicator.style.display = 'block';
 
-    try {
-        const response = await fetch('https://zwf5nd9yr4.execute-api.ap-southeast-2.amazonaws.com/ABC/authenticate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: imageDataUrl }),
-        });
+        try {
+            const response = await fetch('https://zwf5nd9yr4.execute-api.ap-southeast-2.amazonaws.com/ABC/authenticate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageDataUrl }),
+            });
 
-        console.log('Response status:', response.status);
-        const responseText = await response.text();
-        console.log('Response text:', responseText);
+            console.log('Response status:', response.status);
+            const responseText = await response.text();
+            console.log('Response text:', responseText);
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = JSON.parse(responseText);
+            const bodyData = JSON.parse(data.body);
+
+            console.log('Parsed body data:', bodyData);  // デバッグ用
+
+            if (bodyData.authenticated) {
+                result.textContent = `認証成功！ユーザーID: ${bodyData.userId}, 名前: ${bodyData.name}`;
+            } else {
+                result.textContent = "認証できませんでした。顔登録してください。";
+            }
+        } catch (error) {
+            console.error('認証エラー:', error);
+            result.textContent = `認証中にエラーが発生しました: ${error.message}`;
+        } finally {
+            status.textContent = "認証プロセスが完了しました。";
+            loadingIndicator.style.display = 'none';
+            video.pause();
+            stream.getTracks().forEach(track => track.stop());
         }
-
-        const data = JSON.parse(responseText);
-        const bodyData = JSON.parse(data.body);
-
-        console.log('Parsed body data:', bodyData);  // デバッグ用
-
-        if (bodyData.authenticated) {
-            result.textContent = `認証成功！ユーザーID: ${bodyData.userId}`;
-        } else {
-            result.textContent = "認証できませんでした。顔登録してください。";
-        }
-    } catch (error) {
-        console.error('認証エラー:', error);
-        result.textContent = `認証中にエラーが発生しました: ${error.message}`;
-    } finally {
-        status.textContent = "認証プロセスが完了しました。";
-        loadingIndicator.style.display = 'none';
-        video.pause();
-        stream.getTracks().forEach(track => track.stop());
     }
-}
 };
 </script>
 </body>
